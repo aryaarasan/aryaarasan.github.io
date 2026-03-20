@@ -260,6 +260,7 @@
         articles  = parseCSV(csv);
         // Sort: newest first by date
         articles.sort((a, b) => parseArticleDate(b.date) - parseArticleDate(a.date));
+        console.log("Sorted order:", articles.map(a => a.date + " | " + a.headline));
         sessionStorage.setItem("newsCache", JSON.stringify(articles));
         sessionStorage.setItem("lastFetchTime", Date.now().toString());
         if (forceRefresh) showToast("✓ Refreshed — " + articles.length + " articles");
