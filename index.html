@@ -260,7 +260,6 @@
         articles  = parseCSV(csv);
         // Sort: newest first by date
         articles.sort((a, b) => parseArticleDate(b.date) - parseArticleDate(a.date));
-        console.log("Sorted order:", articles.map(a => a.date + " | " + a.headline));
         sessionStorage.setItem("newsCache", JSON.stringify(articles));
         sessionStorage.setItem("lastFetchTime", Date.now().toString());
         if (forceRefresh) showToast("✓ Refreshed — " + articles.length + " articles");
@@ -398,17 +397,18 @@
       return;
     }
 
+    // articles already sorted newest-first by loadData;
+    // group by date while preserving that order
+    const dateOrder = [];
     const byDate = {};
     articles.forEach(a => {
       const d = a.date || "Unknown date";
-      if (!byDate[d]) byDate[d] = [];
+      if (!byDate[d]) { byDate[d] = []; dateOrder.push(d); }
       byDate[d].push(a);
     });
 
-    // Sort date groups newest first
-    const sortedDates = Object.entries(byDate).sort(([a], [b]) =>
-      parseArticleDate(b) - parseArticleDate(a)
-    );
+    // dateOrder already reflects newest-first; no re-sort needed
+    const sortedDates = dateOrder.map(d => [d, byDate[d]]);
 
     let html = "";
     let idx  = 0;
