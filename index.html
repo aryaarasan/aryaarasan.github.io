@@ -226,14 +226,31 @@
   document.getElementById("refresh-btn").addEventListener("click", () => loadData(true));
   loadData(false);
 
+  // ── AUTO-REFRESH every 30 minutes ────────────────────────
+  setInterval(() => loadData(true), 30 * 60 * 1000);
+
+  // Also refresh when user returns to the tab after being away
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      const lastFetch = parseInt(sessionStorage.getItem("lastFetchTime") || "0");
+      const now       = Date.now();
+      // Refresh if last fetch was more than 15 minutes ago
+      if (now - lastFetch > 15 * 60 * 1000) loadData(true);
+    }
+  });
+
   // ── LOAD ─────────────────────────────────────────────────
   async function loadData(forceRefresh) {
     const btn = document.getElementById("refresh-btn");
     btn.classList.add("spinning");
     try {
-      const cached = !forceRefresh && sessionStorage.getItem("newsCache");
+      const cached     = !forceRefresh && sessionStorage.getItem("newsCache");
+      const lastFetch  = parseInt(sessionStorage.getItem("lastFetchTime") || "0");
+      const cacheAge   = Date.now() - lastFetch;
+      const cacheValid = cached && cacheAge < 15 * 60 * 1000; // 15 min cache
+
       let articles;
-      if (cached) {
+      if (cacheValid) {
         articles = JSON.parse(cached);
         showToast("Loaded from cache");
       } else {
@@ -241,7 +258,10 @@
         if (!res.ok) throw new Error("Sheet fetch failed: " + res.status);
         const csv = await res.text();
         articles  = parseCSV(csv);
+        // Sort: newest first by date
+        articles.sort((a, b) => parseArticleDate(b.date) - parseArticleDate(a.date));
         sessionStorage.setItem("newsCache", JSON.stringify(articles));
+        sessionStorage.setItem("lastFetchTime", Date.now().toString());
         if (forceRefresh) showToast("✓ Refreshed — " + articles.length + " articles");
       }
       allArticles = articles;
@@ -253,6 +273,15 @@
     } finally {
       btn.classList.remove("spinning");
     }
+  }
+
+  // ── DATE PARSER for sorting ("20 Mar 2026" → timestamp) ──
+  function parseArticleDate(dateStr) {
+    if (!dateStr) return 0;
+    try {
+      // "20 Mar 2026" → proper Date
+      return new Date(dateStr).getTime() || 0;
+    } catch(e) { return 0; }
   }
 
   // ── CSV PARSER ────────────────────────────────────────────
@@ -365,9 +394,14 @@
       byDate[d].push(a);
     });
 
+    // Sort date groups newest first
+    const sortedDates = Object.entries(byDate).sort(([a], [b]) =>
+      parseArticleDate(b) - parseArticleDate(a)
+    );
+
     let html = "";
     let idx  = 0;
-    Object.entries(byDate).reverse().forEach(([date, items]) => {
+    sortedDates.forEach(([date, items]) => {
       html += `<div class="date-divider"><span>${date}</span></div>`;
       items.forEach(a => { html += buildCard(a, idx++); });
     });
