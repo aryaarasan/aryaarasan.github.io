@@ -1,0 +1,23 @@
+{
+  "name": "Arya's News Digest",
+  "short_name": "AryaNews",
+  "description": "Personal news digest from Gmail newsletters",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d0d0d",
+  "theme_color": "#0d0d0d",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "https://placehold.co/192x192/e8452a/ffffff?text=AN",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://placehold.co/512x512/e8452a/ffffff?text=AN",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

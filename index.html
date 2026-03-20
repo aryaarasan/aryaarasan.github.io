@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Arya's News Digest</title>
+  <meta name="description" content="Personal news digest from your Gmail newsletters" />
+  <meta name="theme-color" content="#0d0d0d" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg:        #0d0d0d;
+      --surface:   #161616;
+      --border:    #2a2a2a;
+      --text:      #f0ebe0;
+      --muted:     #7a7570;
+      --accent:    #e8452a;
+      --accent2:   #f5c842;
+      --card-bg:   #141414;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 300;
+      min-height: 100vh;
+      padding-bottom: env(safe-area-inset-bottom);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── HEADER ── */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(13,13,13,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      font-family: 'Playfair Display', serif;
+      font-weight: 900;
+      font-size: 1.3rem;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      line-height: 1;
+    }
+    .logo span { color: var(--accent); }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .date-pill {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    #refresh-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      font-size: 0.9rem;
+    }
+    #refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+    #refresh-btn.spinning { animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── TICKER / SOURCE FILTER ── */
+    .filter-bar {
+      display: flex;
+      gap: 8px;
+      padding: 12px 20px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      border-bottom: 1px solid var(--border);
+    }
+    .filter-bar::-webkit-scrollbar { display: none; }
+
+    .filter-chip {
+      flex-shrink: 0;
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: none;
+      transition: all 0.2s;
+      text-transform: uppercase;
+    }
+    .filter-chip:hover, .filter-chip.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(232,69,42,0.08);
+    }
+
+    /* ── MAIN FEED ── */
+    main {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 20px 16px;
+    }
+
+    /* ── LOADING / EMPTY / ERROR STATES ── */
+    .state-box {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+    .state-box .icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .state-box h3 { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: var(--text); margin-bottom: 8px; }
+    .state-box p { font-size: 0.82rem; line-height: 1.6; }
+
+    .skeleton-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 12px;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    .skeleton-line {
+      background: var(--border);
+      border-radius: 4px;
+      height: 12px;
+      margin-bottom: 10px;
+    }
+    .skeleton-line.short { width: 40%; }
+    .skeleton-line.medium { width: 70%; }
+    .skeleton-line.full { width: 100%; }
+    @keyframes pulse { 0%,100%{opacity:0.6} 50%{opacity:1} }
+
+    /* ── NEWS CARD ── */
+    .news-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 12px;
+      overflow: hidden;
+      transition: border-color 0.2s, transform 0.15s;
+      animation: fadeUp 0.4s ease both;
+    }
+    .news-card:hover { border-color: #3a3a3a; transform: translateY(-1px); }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .card-header {
+      padding: 16px 18px 14px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .card-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .source-tag {
+      font-size: 0.62rem;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 3px 9px;
+      border-radius: 4px;
+      background: rgba(232,69,42,0.12);
+      color: var(--accent);
+      border: 1px solid rgba(232,69,42,0.25);
+    }
+
+    .card-date {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+
+    .card-headline {
+      font-family: 'Playfair Display', serif;
+      font-weight: 700;
+      font-size: 1.05rem;
+      line-height: 1.4;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .expand-hint {
+      font-size: 0.7rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .expand-hint .chevron {
+      display: inline-block;
+      transition: transform 0.25s;
+      font-size: 0.6rem;
+    }
+    .news-card.open .expand-hint .chevron { transform: rotate(180deg); }
+
+    /* ── SUMMARY PANEL ── */
+    .card-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.35s cubic-bezier(0.4,0,0.2,1);
+    }
+    .news-card.open .card-body { max-height: 400px; }
+
+    .card-body-inner {
+      padding: 0 18px 16px;
+      border-top: 1px solid var(--border);
+      padding-top: 14px;
+    }
+
+    .summary-text {
+      font-size: 0.875rem;
+      line-height: 1.75;
+      color: #c8c3b8;
+      margin-bottom: 16px;
+    }
+
+    .read-full-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border-radius: 6px;
+      text-decoration: none;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .read-full-btn:hover { background: #c73a22; transform: translateY(-1px); }
+    .read-full-btn:active { transform: translateY(0); }
+
+    /* ── DIVIDER BETWEEN DATES ── */
+    .date-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 20px 0 12px;
+    }
+    .date-divider span {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      white-space: nowrap;
+    }
+    .date-divider::before, .date-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── COUNT BAR ── */
+    .count-bar {
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-align: center;
+      padding: 20px 0 8px;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed;
+      bottom: calc(20px + env(safe-area-inset-bottom));
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 0.78rem;
+      padding: 10px 20px;
+      border-radius: 24px;
+      transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+      z-index: 200;
+      white-space: nowrap;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ── FOOTER ── */
+    footer {
+      text-align: center;
+      padding: 30px 20px;
+      font-size: 0.7rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      letter-spacing: 0.04em;
+    }
+    footer a { color: var(--muted); text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Arya<span>.</span>News</div>
+  <div class="header-right">
+    <span class="date-pill" id="today-date"></span>
+    <button id="refresh-btn" title="Refresh">↻</button>
+  </div>
+</header>
+
+<div class="filter-bar" id="filter-bar">
+  <button class="filter-chip active" data-source="all">All</button>
+</div>
+
+<main id="feed">
+  <!-- Skeleton loading -->
+  <div id="skeleton">
+    <div class="skeleton-card">
+      <div class="skeleton-line short"></div>
+      <div class="skeleton-line medium"></div>
+      <div class="skeleton-line full"></div>
+    </div>
+    <div class="skeleton-card">
+      <div class="skeleton-line short"></div>
+      <div class="skeleton-line full"></div>
+      <div class="skeleton-line medium"></div>
+    </div>
+    <div class="skeleton-card">
+      <div class="skeleton-line short"></div>
+      <div class="skeleton-line medium"></div>
+      <div class="skeleton-line full"></div>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<footer>
+  Powered by your Gmail newsletters · Auto-summarized by Gemini AI<br/>
+  <a href="#" onclick="clearCache();return false;">Clear cache & reload</a>
+</footer>
+
+<script>
+  // ══════════════════════════════════════════════════════════
+  //  CONFIGURATION — update SHEET_ID below
+  // ══════════════════════════════════════════════════════════
+  const SHEET_ID  = "1Vet4oW-LAqcl4u6urrlK4Bds-9PVSDAOfknThhSBQHg"; // ← replace this
+  const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=0`;
+
+  // ══════════════════════════════════════════════════════════
+  //  STATE
+  // ══════════════════════════════════════════════════════════
+  let allArticles   = [];
+  let activeFilter  = "all";
+
+  // ══════════════════════════════════════════════════════════
+  //  INIT
+  // ══════════════════════════════════════════════════════════
+  document.getElementById("today-date").textContent = new Date().toLocaleDateString("en-IN", {
+    day: "numeric", month: "short", year: "numeric"
+  });
+
+  document.getElementById("refresh-btn").addEventListener("click", () => loadData(true));
+
+  loadData(false);
+
+  // ══════════════════════════════════════════════════════════
+  //  DATA LOADING
+  // ══════════════════════════════════════════════════════════
+  async function loadData(forceRefresh) {
+    const btn = document.getElementById("refresh-btn");
+    btn.classList.add("spinning");
+
+    try {
+      const cached = !forceRefresh && sessionStorage.getItem("newsCache");
+      let articles;
+
+      if (cached) {
+        articles = JSON.parse(cached);
+        showToast("Loaded from cache");
+      } else {
+        const res = await fetch(SHEET_URL + "&t=" + Date.now());
+        if (!res.ok) throw new Error("Sheet fetch failed: " + res.status);
+        const csv = await res.text();
+        articles  = parseCSV(csv);
+        sessionStorage.setItem("newsCache", JSON.stringify(articles));
+        if (forceRefresh) showToast("✓ Feed refreshed — " + articles.length + " articles");
+      }
+
+      allArticles = articles;
+      buildFilterChips(articles);
+      renderFeed(articles);
+
+    } catch (err) {
+      console.error(err);
+      showError(err.message);
+    } finally {
+      btn.classList.remove("spinning");
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  CSV PARSER
+  // ══════════════════════════════════════════════════════════
+  function parseCSV(csv) {
+    const lines = csv.trim().split("\n");
+    if (lines.length < 2) return [];
+
+    // Skip header row (row 0)
+    return lines.slice(1)
+      .map(line => {
+        // Handle quoted CSV fields properly
+        const cols = [];
+        let cur = "", inQuote = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (ch === '"') { inQuote = !inQuote; }
+          else if (ch === ',' && !inQuote) { cols.push(cur.trim()); cur = ""; }
+          else { cur += ch; }
+        }
+        cols.push(cur.trim());
+
+        return {
+          date:     cols[0] || "",
+          source:   cleanSource(cols[1] || ""),
+          subject:  cols[2] || "",
+          headline: cols[3] || cols[2] || "Untitled",
+          summary:  cols[4] || "",
+          link:     cols[5] || "",
+        };
+      })
+      .filter(a => a.headline && a.headline !== "headline"); // skip header if leaked
+  }
+
+  function cleanSource(from) {
+    // Extract readable name from "Sender Name <email@domain.com>"
+    const match = from.match(/^([^<]+)</);
+    if (match) return match[1].trim();
+    const domMatch = from.match(/@([^.]+)\./);
+    if (domMatch) return domMatch[1].charAt(0).toUpperCase() + domMatch[1].slice(1);
+    return from;
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  FILTER CHIPS
+  // ══════════════════════════════════════════════════════════
+  function buildFilterChips(articles) {
+    const bar = document.getElementById("filter-bar");
+    const sources = [...new Set(articles.map(a => a.source))].filter(Boolean);
+
+    // Remove old source chips (keep "All")
+    [...bar.querySelectorAll("[data-source]:not([data-source='all'])")].forEach(el => el.remove());
+
+    sources.forEach(src => {
+      const btn = document.createElement("button");
+      btn.className = "filter-chip";
+      btn.dataset.source = src;
+      btn.textContent = src;
+      btn.addEventListener("click", () => setFilter(src));
+      bar.appendChild(btn);
+    });
+
+    bar.querySelector("[data-source='all']").addEventListener("click", () => setFilter("all"));
+  }
+
+  function setFilter(source) {
+    activeFilter = source;
+    document.querySelectorAll(".filter-chip").forEach(c => {
+      c.classList.toggle("active", c.dataset.source === source);
+    });
+    const filtered = source === "all" ? allArticles : allArticles.filter(a => a.source === source);
+    renderFeed(filtered);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  RENDER
+  // ══════════════════════════════════════════════════════════
+  function renderFeed(articles) {
+    const feed = document.getElementById("feed");
+    document.getElementById("skeleton")?.remove();
+
+    if (!articles.length) {
+      feed.innerHTML = `
+        <div class="state-box">
+          <div class="icon">📭</div>
+          <h3>No articles yet</h3>
+          <p>Run your Apps Script to fetch and summarize<br/>your latest newsletters.</p>
+        </div>`;
+      return;
+    }
+
+    // Group by date
+    const byDate = {};
+    articles.forEach(a => {
+      const d = a.date || "Unknown date";
+      if (!byDate[d]) byDate[d] = [];
+      byDate[d].push(a);
+    });
+
+    let html = "";
+    let cardIndex = 0;
+
+    Object.entries(byDate).reverse().forEach(([date, items]) => {
+      html += `<div class="date-divider"><span>${date}</span></div>`;
+      items.forEach(article => {
+        html += buildCard(article, cardIndex++);
+      });
+    });
+
+    html += `<div class="count-bar">${articles.length} article${articles.length !== 1 ? "s" : ""} · Last refreshed ${new Date().toLocaleTimeString("en-IN", {hour:"2-digit",minute:"2-digit"})}</div>`;
+
+    feed.innerHTML = html;
+
+    // Attach toggle handlers
+    feed.querySelectorAll(".card-header").forEach(header => {
+      header.addEventListener("click", () => {
+        const card = header.closest(".news-card");
+        const isOpen = card.classList.contains("open");
+        // Close all others
+        feed.querySelectorAll(".news-card.open").forEach(c => c.classList.remove("open"));
+        if (!isOpen) card.classList.add("open");
+      });
+    });
+  }
+
+  function buildCard(article, index) {
+    const hasLink    = article.link && article.link.startsWith("http");
+    const hasSummary = article.summary && article.summary !== "Summary unavailable.";
+    const delay      = Math.min(index * 60, 400);
+
+    return `
+    <div class="news-card" style="animation-delay:${delay}ms">
+      <div class="card-header">
+        <div class="card-meta">
+          <span class="source-tag">${escHtml(article.source)}</span>
+          <span class="card-date">${escHtml(article.date)}</span>
+        </div>
+        <div class="card-headline">${escHtml(article.headline)}</div>
+        ${hasSummary ? `<div class="expand-hint">Tap to read summary <span class="chevron">▼</span></div>` : ""}
+      </div>
+      ${hasSummary ? `
+      <div class="card-body">
+        <div class="card-body-inner">
+          <p class="summary-text">${escHtml(article.summary)}</p>
+          ${hasLink ? `<a class="read-full-btn" href="${escHtml(article.link)}" target="_blank" rel="noopener">Read full article ↗</a>` : ""}
+        </div>
+      </div>` : ""}
+    </div>`;
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  HELPERS
+  // ══════════════════════════════════════════════════════════
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;");
+  }
+
+  function showError(msg) {
+    document.getElementById("skeleton")?.remove();
+    document.getElementById("feed").innerHTML = `
+      <div class="state-box">
+        <div class="icon">⚠️</div>
+        <h3>Couldn't load articles</h3>
+        <p>${escHtml(msg)}<br/><br/>Make sure your Google Sheet is published<br/>and the SHEET_ID is correct.</p>
+      </div>`;
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 2800);
+  }
+
+  function clearCache() {
+    sessionStorage.removeItem("newsCache");
+    loadData(true);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  SERVICE WORKER REGISTRATION
+  // ══════════════════════════════════════════════════════════
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js").catch(console.warn);
+  }
+</script>
+</body>
+</html>
